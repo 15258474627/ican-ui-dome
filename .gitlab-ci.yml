@@ -1,0 +1,61 @@
+stages:
+  - build
+  - deploy-release
+  - deploy-master
+
+cache:
+  key: ${CI_COMMIT_REF_NAME}
+  paths:
+    - node_modules/
+
+build_job:
+  image: node:12.13.0-alpine
+  stage: build
+  tags:
+    - bmc
+  only:
+    refs:
+      - /^build-.*$/ # 使用正则匹配要部署分支
+      - /^deploy-.*/
+  script:
+    - yarn
+    # - yarn test:unit
+    # - yarn lint
+    - yarn build
+  artifacts:
+    name: 'iep-ui-$CI_COMMIT_REF_SLUG-$CI_COMMIT_SHA'
+    expire_in: 1 week
+    paths:
+      - dist
+
+deploy_release_job:
+  image: alpine
+  stage: deploy-release
+  only:
+    - deploy-release
+  tags:
+    - bmc
+  script:
+    - echo "http://mirrors.aliyun.com/alpine/v3.8/main/" > /etc/apk/repositories
+    - apk add --no-cache rsync openssh
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" >> ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - echo -e "Host $DEPLOY_SERVER\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+    - rsync -rav -e "ssh -p $DEPLOY_PORT" --delete dist/ "$DEPLOY_SERVER:$SERVER_DEV_PATH"
+
+deploy_master_job:
+  image: alpine
+  stage: deploy-master
+  only:
+    - deploy-master
+  tags:
+    - bmc
+  script:
+    - echo "http://mirrors.aliyun.com/alpine/v3.8/main/" > /etc/apk/repositories
+    - apk add --no-cache rsync openssh
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" >> ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - echo -e "Host $DEPLOY_SERVER_MASTER\n\tStrictHostKeyChecking no\n" >> ~/.ssh/config
+    - rsync -rav --delete dist/ "$DEPLOY_SERVER_MASTER:$SERVER_DEV_PATH_MASTER"

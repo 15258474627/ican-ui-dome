@@ -1,0 +1,5 @@
+/config/
+/dist/
+/public/
+/script/
+vue.config.js
